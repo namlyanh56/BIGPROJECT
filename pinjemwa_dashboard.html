@@ -1,0 +1,839 @@
+
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+<div id="root"></div>
+
+<script>
+const { useState, useEffect, useRef, createElement: h } = React;
+
+const ic = (name, size = 16, extraStyle = {}) => {
+  const icon = lucide[name];
+  if (!icon) return null;
+  const [tag, attrs, ...children] = icon;
+  const svgAttrs = {
+    ...attrs,
+    width: size,
+    height: size,
+    style: { display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...extraStyle },
+    stroke: 'currentColor',
+    fill: 'none',
+    strokeWidth: 1.75,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    ...attrs
+  };
+  const renderChildren = (kids) => kids.map((kid, i) => {
+    if (typeof kid === 'string') return kid;
+    const [t, a, ...c] = kid;
+    return h(t, { key: i, ...a }, ...renderChildren(c));
+  });
+  return h('svg', svgAttrs, ...renderChildren(children));
+};
+
+const PURPLE = "#5B5BD6";
+const PURPLE_LIGHT = "#EEEDFE";
+const BG = "#F4F4F8";
+const WHITE = "#FFFFFF";
+const RED_BADGE = "#FFF0F0";
+const RED_TEXT = "#E53E3E";
+const GREEN_BG = "#F0FFF4";
+const GREEN_TEXT = "#276749";
+const BORDER = "#E8E8F0";
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body,#root{font-family:'DM Sans',sans-serif;background:${BG};min-height:100vh}
+  input,select,textarea,button{font-family:'DM Sans',sans-serif}
+  button{cursor:pointer}
+  .app{max-width:420px;margin:0 auto;min-height:100vh;background:${BG};display:flex;flex-direction:column}
+  .topbar{background:${WHITE};padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${BORDER};position:sticky;top:0;z-index:100}
+  .topbar-icon{width:34px;height:34px;background:${PURPLE};border-radius:9px;display:flex;align-items:center;justify-content:center;color:white}
+  .topbar-title{font-weight:700;font-size:15px;color:#1a1a2e}
+  .topbar-sub{font-size:11px;color:#aaa;font-weight:400;margin-left:4px}
+  .logout-btn{display:flex;align-items:center;gap:6px;color:#888;font-size:13px;background:none;border:none;padding:6px 10px;border-radius:8px;transition:background .2s}
+  .logout-btn:hover{background:#F4F4F8}
+  .bottom-nav{background:${WHITE};border-top:1px solid ${BORDER};display:flex;align-items:center;justify-content:space-around;padding:8px 0 20px;position:sticky;bottom:0;z-index:100}
+  .nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 14px;cursor:pointer;color:#aaa;font-size:11px;font-weight:500;transition:color .2s;border:none;background:none}
+  .nav-item.active{color:${PURPLE}}
+  .nav-wallet{width:50px;height:50px;background:${PURPLE};border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-18px;box-shadow:0 4px 16px rgba(91,91,214,0.4);color:white}
+  .page{flex:1;overflow-y:auto;padding-bottom:80px}
+  .page-header{padding:18px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between}
+  .page-header-icon{width:38px;height:38px;background:#F0F0FC;border-radius:11px;display:flex;align-items:center;justify-content:center;color:${PURPLE};flex-shrink:0}
+  .page-header-title{font-size:17px;font-weight:700;color:#1a1a2e}
+  .page-header-sub{font-size:12px;color:#aaa;margin-top:2px}
+  .card{background:${WHITE};border-radius:16px;border:1px solid ${BORDER}}
+  .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:0 16px 12px}
+  .stat-card{background:${WHITE};border-radius:13px;border:1px solid ${BORDER};padding:13px}
+  .stat-label{font-size:10px;color:#aaa;font-weight:700;letter-spacing:0.5px;text-transform:uppercase}
+  .stat-value{font-size:22px;font-weight:700;color:#1a1a2e;margin-top:4px}
+  .device-card{background:${WHITE};border-radius:13px;border:1px solid ${BORDER};padding:13px 15px;margin:0 16px 10px}
+  .device-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .device-label{font-size:10px;color:#aaa;font-weight:700;letter-spacing:0.5px}
+  .device-id{font-size:14px;font-weight:700;color:#1a1a2e}
+  .badge-dis{background:${RED_BADGE};color:${RED_TEXT};font-size:10px;font-weight:700;padding:4px 9px;border-radius:20px;display:flex;align-items:center;gap:4px}
+  .badge-con{background:#F0FFF4;color:#276749;font-size:10px;font-weight:700;padding:4px 9px;border-radius:20px;display:flex;align-items:center;gap:4px}
+  .device-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px}
+  .device-stat{background:#F8F8FC;border-radius:9px;padding:7px 9px;font-size:11px;color:#666}
+  .device-stat.ok{background:${GREEN_BG};color:${GREEN_TEXT}}
+  .device-stat-val{font-weight:700;font-size:13px;color:#1a1a2e;margin-top:2px}
+  .device-stat.ok .device-stat-val{color:${GREEN_TEXT}}
+  .btn-primary{background:${PURPLE};color:white;border:none;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:600;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s}
+  .btn-primary:hover{opacity:.9}
+  .btn-primary:disabled{opacity:.5}
+  .btn-outline{background:white;color:#1a1a2e;border:1.5px solid ${BORDER};border-radius:12px;padding:13px 18px;font-size:14px;font-weight:600;width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+  .input-group{margin-bottom:14px}
+  .input-label{font-size:13px;font-weight:600;color:#333;margin-bottom:5px;display:block}
+  .input-wrap{position:relative}
+  .input-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#bbb}
+  .input-field{width:100%;background:#F8F8FC;border:1.5px solid ${BORDER};border-radius:11px;padding:12px 12px 12px 40px;font-size:14px;color:#1a1a2e;outline:none;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+  .input-field:focus{border-color:${PURPLE}}
+  .input-field.no-icon{padding-left:12px}
+  .input-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#bbb;cursor:pointer;background:none;border:none}
+  .auth-page{min-height:100vh;background:linear-gradient(135deg,#EEF0FF 0%,#F4F4F8 60%);display:flex;align-items:center;justify-content:center;padding:20px}
+  .auth-card{background:${WHITE};border-radius:22px;padding:30px 26px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(91,91,214,0.1)}
+  .auth-logo{width:60px;height:60px;background:${PURPLE};border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:white}
+  .auth-title{font-size:22px;font-weight:700;text-align:center;color:#1a1a2e;margin-bottom:5px}
+  .auth-sub{font-size:13px;color:#888;text-align:center;margin-bottom:24px}
+  .warning-banner{background:#FFF8E6;border:1px solid #FEE2A0;border-radius:13px;padding:13px 15px;margin:0 16px 12px;display:flex;gap:10px}
+  .warning-title{font-size:13px;font-weight:700;color:#92400E}
+  .warning-text{font-size:12px;color:#92400E;margin-top:2px;line-height:1.5}
+  .info-banner{background:#EEF0FF;border:1px solid #C7C9F0;border-radius:13px;padding:11px 15px;margin:0 16px 12px;display:flex;gap:10px;align-items:flex-start}
+  .stat-item{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid #F0F0F8}
+  .stat-item:last-child{border-bottom:none}
+  .stat-item-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .balance-card{background:${PURPLE};border-radius:15px;padding:18px;margin:0 16px 12px;color:white}
+  .balance-amount{font-size:30px;font-weight:800;margin:5px 0 14px}
+  .balance-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .balance-item{background:rgba(255,255,255,0.15);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:8px}
+  .filter-tabs{display:flex;gap:7px;padding:0 16px 11px}
+  .filter-tab{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid ${BORDER};background:white;color:#666;cursor:pointer;transition:all .2s}
+  .filter-tab.active{background:${PURPLE_LIGHT};color:${PURPLE};border-color:${PURPLE}}
+  .search-wrap{margin:0 16px 11px;position:relative}
+  .search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#bbb}
+  .search-input{width:100%;background:white;border:1.5px solid ${BORDER};border-radius:11px;padding:11px 12px 11px 38px;font-size:13px;color:#333;outline:none;font-family:'DM Sans',sans-serif}
+  .search-input:focus{border-color:${PURPLE}}
+  .scan-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 12px}
+  .scan-btn-p{background:${PURPLE};color:white;border:none;border-radius:11px;padding:13px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+  .scan-btn-o{background:white;color:#333;border:1.5px solid ${BORDER};border-radius:11px;padding:13px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+  .withdraw-balance{background:${PURPLE};border-radius:15px;padding:18px;margin:0 16px 12px;color:white}
+  .amount-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .amount-pill{padding:6px 13px;border-radius:20px;border:1.5px solid ${BORDER};background:white;font-size:12px;font-weight:600;color:#555;cursor:pointer;transition:all .2s}
+  .amount-pill.sel{background:${PURPLE_LIGHT};color:${PURPLE};border-color:${PURPLE}}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+  .modal-sheet{background:white;border-radius:22px 22px 0 0;width:100%;max-width:420px;padding:18px;max-height:90vh;overflow-y:auto}
+  .modal-handle{width:38px;height:4px;background:#E0E0E8;border-radius:2px;margin:0 auto 18px}
+  .popup-menu{background:white;border-radius:15px;box-shadow:0 8px 40px rgba(0,0,0,0.15);padding:7px;position:absolute;right:16px;bottom:70px;z-index:150;min-width:170px;border:1px solid ${BORDER}}
+  .popup-item{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;color:#333}
+  .popup-item:hover{background:#F8F8FC}
+  .pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;font-size:12px;color:#888}
+  .page-btn{background:none;border:none;color:${PURPLE};font-size:16px;cursor:pointer;display:flex;align-items:center;padding:0}
+  .page-btn:disabled{color:#ccc;cursor:default}
+  .empty-state{text-align:center;padding:36px 18px;color:#aaa;font-size:13px}
+  .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:white;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:500;z-index:999;animation:fadeInOut 2.5s ease forwards;white-space:nowrap}
+  @keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(-8px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}75%{opacity:1}100%{opacity:0}}
+  .komisi-banner{background:#EEEDFE;border:1px solid #C7C9F0;border-radius:13px;padding:13px 15px;margin:0 16px 12px;display:flex;gap:10px;align-items:flex-start}
+  .riwayat-empty{text-align:center;padding:28px;color:#bbb;font-size:13px}
+  .ref-total-card{background:white;border-radius:13px;border:1px solid ${BORDER};padding:15px;margin:0 16px 12px}
+  .ref-total-val{font-size:26px;font-weight:800;color:#1a1a2e;margin:7px 0 13px}
+  .ref-total-row{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .profile-section{background:white;border-radius:13px;border:1px solid ${BORDER};padding:15px;margin:0 16px 12px}
+  .profile-section-title{font-size:14px;font-weight:700;color:#1a1a2e;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .profile-section-badge{background:${PURPLE_LIGHT};color:${PURPLE};font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px}
+  .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:13px}
+  .select-field{width:100%;background:#F8F8FC;border:1.5px solid ${BORDER};border-radius:10px;padding:9px 11px;font-size:13px;color:#333;outline:none;appearance:none;font-family:'DM Sans',sans-serif}
+  .forgot-link{text-align:right;margin-top:-6px;margin-bottom:14px}
+  .forgot-link a{color:${PURPLE};font-size:12px;font-weight:600;cursor:pointer;text-decoration:none}
+  .terms-text{font-size:11px;color:#aaa;text-align:center;margin-top:14px;line-height:1.6}
+  .terms-text a{color:${PURPLE};font-weight:600;cursor:pointer}
+  .section-sep{height:1px;background:${BORDER};margin:4px 0}
+  .device-action-btn{width:30px;height:30px;background:${RED_BADGE};border-radius:8px;border:none;display:flex;align-items:center;justify-content:center;color:${RED_TEXT};cursor:pointer}
+`;
+
+const DEVICES_DATA = [
+  {id:"dev_114c472",wa:"+6281515575167",sent:3,delivered:3,profit:2100,mode:"NORMAL (10s)",status:"disconnected"},
+  {id:"dev_f7e26f7",wa:"+6285211815322",sent:0,delivered:0,profit:0,mode:"SLOW (20s)",status:"disconnected"},
+  {id:"dev_bb8d1bd",wa:"+923316956207",sent:1,delivered:0,profit:650,mode:"SLOW (20s)",status:"disconnected"},
+  {id:"dev_8a7368f",wa:"+923353586944",sent:9,delivered:4,profit:5850,mode:"SLOW (20s)",status:"disconnected"},
+  {id:"dev_3bc901a",wa:"+6285612345678",sent:5,delivered:5,profit:3500,mode:"NORMAL (10s)",status:"disconnected"},
+];
+
+function QRModal({onClose}) {
+  const [step, setStep] = useState("qr");
+  const [phone, setPhone] = useState("");
+  return h('div', {className:'modal-overlay', onClick:onClose},
+    h('div', {className:'modal-sheet', onClick:e=>e.stopPropagation()},
+      h('div', {className:'modal-handle'}),
+      h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}},
+        h('div', {style:{fontSize:16,fontWeight:700,color:'#1a1a2e'}}, `Tambah Device — ${step==='qr'?'QR':'Pairing'}`),
+        h('button', {style:{background:'none',border:'none',color:RED_TEXT,fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}, onClick:onClose},
+          ic('X', 14), ' Tutup'
+        )
+      ),
+      step === 'qr'
+        ? h('div', null,
+            h('div', {style:{textAlign:'center',color:PURPLE,fontWeight:700,fontSize:13,marginBottom:12}}, 'dev_new8f3a'),
+            h('div', {style:{width:190,height:190,margin:'0 auto 14px',border:`2px solid ${BORDER}`,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',background:'#F8F8FC',flexDirection:'column',gap:8}},
+              ic('QrCode', 56, {color:'#ccc'}),
+              h('div', {style:{fontSize:12,color:'#ccc'}}, 'QR Code')
+            ),
+            h('div', {style:{textAlign:'center',fontSize:12,color:'#888',marginBottom:18}}, 'Scan dengan WhatsApp di HP kamu'),
+            h('button', {className:'btn-outline', onClick:()=>setStep('pairing'), style:{marginBottom:10}},
+              ic('Link', 16), ' Pakai Pairing Code'
+            )
+          )
+        : h('div', null,
+            h('div', {className:'input-group'},
+              h('label', {className:'input-label'}, 'Nomor WhatsApp'),
+              h('div', {className:'input-wrap'},
+                h('input', {className:'input-field no-icon',placeholder:'Contoh: 62812xxxxxxx',value:phone,onChange:e=>setPhone(e.target.value)})
+              ),
+              h('div', {style:{fontSize:11,color:'#aaa',marginTop:5}}, 'Format internasional (62...), tanpa spasi/tanda +')
+            ),
+            h('button', {className:'btn-primary', style:{opacity:phone.length<10?.5:1}},
+              ic('Link', 16), ' Mulai Pairing'
+            )
+          )
+    )
+  );
+}
+
+function WalletPopup({onClose, onWithdraw}) {
+  return h('div', {style:{position:'fixed',inset:0,zIndex:150}, onClick:onClose},
+    h('div', {className:'popup-menu', onClick:e=>e.stopPropagation()},
+      h('div', {className:'popup-item', onClick:()=>{onWithdraw();onClose();}},
+        ic('ArrowDownLeft', 18), ' Withdraw'
+      ),
+      h('div', {className:'section-sep'}),
+      h('div', {className:'popup-item'},
+        ic('List', 18), ' Transaksi Semua'
+      )
+    )
+  );
+}
+
+function LoginPage({onLogin, onRegister}) {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  return h('div', {className:'auth-page'},
+    h('div', {className:'auth-card'},
+      h('div', {className:'auth-logo'}, ic('Phone', 28)),
+      h('div', {className:'auth-title'}, 'Selamat Datang'),
+      h('div', {className:'auth-sub'}, 'Kirim pesan • Dapat komisi'),
+      h('p', {style:{fontSize:13,color:'#888',textAlign:'center',marginBottom:22}}, 'Masuk untuk melanjutkan ke dashboard Anda'),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Email'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Mail', 16)),
+          h('input', {className:'input-field',placeholder:'nama@domain.com',type:'email',value:email,onChange:e=>setEmail(e.target.value)})
+        )
+      ),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Password'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Lock', 16)),
+          h('input', {className:'input-field',placeholder:'••••••••',type:showPass?'text':'password',value:pass,onChange:e=>setPass(e.target.value)}),
+          h('button', {className:'input-eye', onClick:()=>setShowPass(!showPass)}, ic(showPass?'EyeOff':'Eye', 18))
+        )
+      ),
+      h('div', {className:'forgot-link'}, h('a', {onClick:()=>{}}, 'Lupa password?')),
+      h('button', {className:'btn-primary', onClick:onLogin},
+        ic('LogIn', 16), ' Masuk'
+      ),
+      h('div', {style:{textAlign:'center',marginTop:18,fontSize:13}},
+        h('span', {style:{color:PURPLE,fontWeight:700,cursor:'pointer'}, onClick:onRegister}, 'Daftar Akun Baru')
+      ),
+      h('div', {className:'terms-text'},
+        'Dengan masuk, Anda menyetujui ', h('a', null, 'Ketentuan'), ' & ', h('a', null, 'Kebijakan Privasi'), '.'
+      )
+    )
+  );
+}
+
+function RegisterPage({onBack}) {
+  const [showPass, setShowPass] = useState(false);
+  const [showConf, setShowConf] = useState(false);
+  return h('div', {className:'auth-page'},
+    h('div', {className:'auth-card'},
+      h('div', {className:'auth-logo'}, ic('Phone', 28)),
+      h('div', {className:'auth-title'}, 'Daftar Akun Baru'),
+      h('div', {className:'auth-sub', style:{marginBottom:22}}, 'Buat akun untuk mulai menghasilkan'),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Nama Lengkap'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('User', 16)),
+          h('input', {className:'input-field', placeholder:'Masukkan nama lengkap'})
+        )
+      ),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Email'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Mail', 16)),
+          h('input', {className:'input-field', placeholder:'nama@domain.com', type:'email'})
+        )
+      ),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Password'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Lock', 16)),
+          h('input', {className:'input-field', placeholder:'Minimal 6 karakter', type:showPass?'text':'password'}),
+          h('button', {className:'input-eye', onClick:()=>setShowPass(!showPass)}, ic(showPass?'EyeOff':'Eye', 18))
+        )
+      ),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Konfirmasi Password'),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Lock', 16)),
+          h('input', {className:'input-field', placeholder:'Ulangi password', type:showConf?'text':'password'}),
+          h('button', {className:'input-eye', onClick:()=>setShowConf(!showConf)}, ic(showConf?'EyeOff':'Eye', 18))
+        )
+      ),
+      h('div', {className:'input-group'},
+        h('label', {className:'input-label'}, 'Kode Referral ', h('span', {style:{color:'#aaa',fontWeight:400}}, '(opsional)')),
+        h('div', {className:'input-wrap'},
+          h('span', {className:'input-icon'}, ic('Gift', 16)),
+          h('input', {className:'input-field', placeholder:'Masukkan kode referral'})
+        )
+      ),
+      h('button', {className:'btn-primary', onClick:onBack},
+        ic('UserPlus', 16), ' Daftar Sekarang'
+      ),
+      h('div', {style:{textAlign:'center',marginTop:14,fontSize:13}},
+        'Sudah punya akun? ',
+        h('span', {style:{color:PURPLE,fontWeight:700,cursor:'pointer'}, onClick:onBack}, 'Masuk')
+      )
+    )
+  );
+}
+
+function DashboardPage() {
+  return h('div', null,
+    h('div', {className:'page-header'},
+      h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+        h('div', {className:'page-header-icon'}, ic('LayoutDashboard', 18)),
+        h('div', null,
+          h('div', {className:'page-header-title'}, 'Dashboard'),
+          h('div', {className:'page-header-sub'}, 'Ringkasan akun kamu hari ini')
+        )
+      )
+    ),
+    h('div', {className:'komisi-banner'},
+      h('span', {style:{color:PURPLE,flexShrink:0,marginTop:1}}, ic('Info', 16)),
+      h('div', {style:{fontSize:12,color:'#3333aa'}},
+        h('strong', null, 'Komisi Per Pesan'), h('br'),
+        'Kamu mendapatkan ', h('strong', null, 'Rp700'), ' untuk setiap pesan yang berhasil terkirim melalui device kamu.'
+      )
+    ),
+    h('div', {className:'stats-row', style:{gridTemplateColumns:'1fr 1fr'}},
+      h('div', {className:'stat-card'},
+        h('div', {className:'stat-label'}, 'ONLINE'),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {className:'stat-value'}, '0'),
+          h('span', {style:{opacity:.35,color:'#5B5BD6'}}, ic('Wifi', 22))
+        )
+      ),
+      h('div', {className:'stat-card'},
+        h('div', {className:'stat-label', style:{color:RED_TEXT}}, 'OFFLINE'),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {className:'stat-value'}, '11'),
+          h('span', {style:{opacity:.35,color:RED_TEXT}}, ic('WifiOff', 22))
+        )
+      )
+    ),
+    h('div', {className:'balance-card'},
+      h('div', {style:{fontSize:11,fontWeight:600,opacity:.7,letterSpacing:.5}}, 'BALANCE'),
+      h('div', {className:'balance-amount'}, 'Rp11.400'),
+      h('div', {className:'balance-row'},
+        h('div', {className:'balance-item'},
+          ic('Wallet', 20, {color:'white'}),
+          h('div', null,
+            h('div', {style:{fontSize:10,opacity:.7}}, 'Pendapatan'),
+            h('div', {style:{fontSize:14,fontWeight:700}}, 'Rp0')
+          )
+        ),
+        h('div', {className:'balance-item'},
+          ic('MessageSquare', 20, {color:'white'}),
+          h('div', null,
+            h('div', {style:{fontSize:10,opacity:.7}}, 'Pesan Sukses'),
+            h('div', {style:{fontSize:14,fontWeight:700}}, '0')
+          )
+        )
+      )
+    ),
+    h('div', {className:'warning-banner'},
+      h('span', {style:{color:'#F59E0B',flexShrink:0,marginTop:1}}, ic('AlertTriangle', 18)),
+      h('div', null,
+        h('div', {className:'warning-title'}, 'Peringatan'),
+        h('div', {className:'warning-text'},
+          'Dilarang menghapus pesan yang sudah terkirim. Pelanggaran akan berakibat ',
+          h('strong', null, 'pemblokiran akun'), '.'
+        )
+      )
+    ),
+    h('div', {style:{margin:'0 16px 12px'}},
+      h('div', {className:'card', style:{padding:15}},
+        h('div', {style:{fontSize:11,color:'#aaa',fontWeight:700,letterSpacing:.5,textTransform:'uppercase',marginBottom:11,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('span', null, 'Hari Ini'),
+          h('span', {style:{background:'#F0F0FC',color:PURPLE,padding:'3px 9px',borderRadius:20,fontWeight:600}}, 'Realtime')
+        ),
+        ...[
+          {dot:'#5B5BD6',iconName:'Smartphone',iconBg:'#EEEDFE',name:'WA Aktif',sub:'Jumlah device terhubung',val:'0',unit:'Connected'},
+          {dot:'#ccc',iconName:'SmartphoneNfc',iconBg:'#F4F4F8',name:'WA Disconnect',sub:'Perlu reconnect/scan',val:'11',unit:'Offline'},
+          {dot:'#5B5BD6',iconName:'MessageCircle',iconBg:'#EEEDFE',name:'Pesan Sukses',sub:'Terkirim hari ini',val:'0',unit:'Delivered'},
+          {dot:'#F59E0B',iconName:'Banknote',iconBg:'#FFF8E6',name:'Pendapatan',sub:'Komisi hari ini',val:'Rp0',unit:'Today'},
+        ].map((item,i)=>
+          h('div', {key:i, className:'stat-item'},
+            h('span', {style:{width:7,height:7,borderRadius:'50%',background:item.dot,flexShrink:0,display:'inline-block'}}),
+            h('div', {className:'stat-item-icon', style:{background:item.iconBg,color:PURPLE}}, ic(item.iconName, 17)),
+            h('div', {style:{flex:1}},
+              h('div', {style:{fontSize:13,fontWeight:600,color:'#1a1a2e'}}, item.name),
+              h('div', {style:{fontSize:11,color:'#aaa',marginTop:1}}, item.sub)
+            ),
+            h('div', {style:{textAlign:'right'}},
+              h('div', {style:{fontSize:17,fontWeight:700,color:'#1a1a2e'}}, item.val),
+              h('div', {style:{fontSize:11,color:'#aaa'}}, item.unit)
+            )
+          )
+        )
+      )
+    ),
+    h('div', {style:{margin:'0 16px 16px'}},
+      h('div', {style:{background:'#F0F0FC',borderRadius:13,padding:'13px 15px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}},
+        h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+          h('div', {style:{width:38,height:38,background:PURPLE,borderRadius:11,display:'flex',alignItems:'center',justifyContent:'center',color:'white'}},
+            ic('Bot', 18)
+          ),
+          h('div', null,
+            h('div', {style:{fontSize:10,color:PURPLE,fontWeight:700,letterSpacing:.5}}, 'TAMBAH BOT'),
+            h('div', {style:{fontSize:14,fontWeight:700,color:PURPLE}}, 'Kelola WhatsApp Bot')
+          )
+        ),
+        h('span', {style:{color:PURPLE}}, ic('ChevronRight', 20))
+      )
+    )
+  );
+}
+
+function DevicesPage({onScanQR, onPairing}) {
+  const [filter, setFilter] = useState("semua");
+  const [search, setSearch] = useState("");
+  const devices = DEVICES_DATA.filter(d => {
+    if (filter==='online' && d.status!=='connected') return false;
+    if (filter==='offline' && d.status!=='disconnected') return false;
+    if (search && !d.id.includes(search) && !d.wa.includes(search)) return false;
+    return true;
+  });
+  return h('div', null,
+    h('div', {className:'page-header'},
+      h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+        h('div', {className:'page-header-icon'}, ic('Smartphone', 18)),
+        h('div', null,
+          h('div', {className:'page-header-title'}, 'Devices'),
+          h('div', {className:'page-header-sub'}, 'Kelola perangkat WhatsApp kamu')
+        )
+      ),
+      h('button', {style:{background:'#F0F0FC',border:'none',borderRadius:9,width:34,height:34,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:PURPLE}},
+        ic('RefreshCw', 16)
+      )
+    ),
+    h('div', {className:'stats-row'},
+      h('div', {className:'stat-card'},
+        h('div', {className:'stat-label'}, 'TOTAL'),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {className:'stat-value'}, '11'),
+          h('span', {style:{opacity:.35}}, ic('Monitor', 22))
+        )
+      ),
+      h('div', {className:'stat-card'},
+        h('div', {className:'stat-label', style:{color:GREEN_TEXT}}, 'ONLINE'),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {className:'stat-value'}, '0'),
+          h('span', {style:{opacity:.35,color:GREEN_TEXT}}, ic('Wifi', 22))
+        )
+      ),
+      h('div', {className:'stat-card'},
+        h('div', {className:'stat-label', style:{color:RED_TEXT}}, 'OFFLINE'),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {className:'stat-value'}, '11'),
+          h('span', {style:{opacity:.35,color:RED_TEXT}}, ic('WifiOff', 22))
+        )
+      )
+    ),
+    h('div', {className:'scan-row'},
+      h('button', {className:'scan-btn-p', onClick:onScanQR}, ic('QrCode', 17), ' Scan QR'),
+      h('button', {className:'scan-btn-o', onClick:onPairing}, ic('Link', 16), ' Pairing Code')
+    ),
+    h('div', {className:'search-wrap'},
+      h('span', {className:'search-icon'}, ic('Search', 16)),
+      h('input', {className:'search-input', placeholder:'Cari Device ID / nomor WhatsApp...', value:search, onChange:e=>setSearch(e.target.value)})
+    ),
+    h('div', {className:'filter-tabs'},
+      ['semua','online','offline'].map(f =>
+        h('button', {key:f, className:`filter-tab ${filter===f?'active':''}`, onClick:()=>setFilter(f)},
+          f.charAt(0).toUpperCase()+f.slice(1)
+        )
+      )
+    ),
+    ...devices.map((d,i) =>
+      h('div', {key:i, className:'device-card'},
+        h('div', {className:'device-row'},
+          h('div', null,
+            h('div', {className:'device-label'}, 'DEVICE'),
+            h('div', {className:'device-id'}, d.id)
+          ),
+          h('div', {className:d.status==='connected'?'badge-con':'badge-dis'},
+            h('span', {style:{width:6,height:6,borderRadius:'50%',background:d.status==='connected'?GREEN_TEXT:RED_TEXT,display:'inline-block'}}),
+            ' ', d.status==='connected'?'CONNECTED':'DISCONNECTED'
+          )
+        ),
+        h('div', {style:{fontSize:12,color:'#555',marginBottom:9,display:'flex',alignItems:'center',gap:5}},
+          ic('Phone', 13, {color:'#aaa'}), ' No. WA ', h('strong', null, d.wa)
+        ),
+        h('div', {className:'device-stats'},
+          h('div', {className:'device-stat'},
+            h('div', {style:{fontSize:10,color:'#888',display:'flex',alignItems:'center',gap:3}}, ic('Send', 11), ' Sent'),
+            h('div', {className:'device-stat-val'}, d.sent)
+          ),
+          h('div', {className:`device-stat ${d.delivered>0?'ok':''}`},
+            h('div', {style:{fontSize:10,display:'flex',alignItems:'center',gap:3}}, ic('CheckCheck', 11), ' Delivered'),
+            h('div', {className:'device-stat-val'}, d.delivered)
+          ),
+          h('div', {className:'device-stat'},
+            h('div', {style:{fontSize:10,color:'#888',display:'flex',alignItems:'center',gap:3}}, ic('Banknote', 11), ' Profit'),
+            h('div', {className:'device-stat-val'}, d.profit)
+          )
+        ),
+        h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+          h('div', {style:{fontSize:11,color:'#888'}}, 'MODE ', h('strong', {style:{color:'#555'}}, d.mode)),
+          h('button', {className:'device-action-btn'}, ic('ArrowRight', 15))
+        )
+      )
+    ),
+    h('div', {className:'pagination'},
+      h('button', {className:'page-btn', disabled:true}, ic('ChevronLeft', 18)),
+      h('span', null, 'Page 1/1 (11 devices)'),
+      h('button', {className:'page-btn', disabled:true}, ic('ChevronRight', 18))
+    )
+  );
+}
+
+function WithdrawPage() {
+  const [amount, setAmount] = useState("");
+  const [selected, setSelected] = useState(null);
+  const pills = ["Rp5.000","Rp10.000","Rp25.000","Rp50.000","Rp100.000","Semua"];
+  return h('div', null,
+    h('div', {className:'page-header'},
+      h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+        h('div', {className:'page-header-icon'}, ic('ArrowDownLeft', 18)),
+        h('div', null,
+          h('div', {className:'page-header-title'}, 'Withdraw'),
+          h('div', {className:'page-header-sub'}, 'Tarik saldo ke rekening kamu')
+        )
+      )
+    ),
+    h('div', {className:'withdraw-balance'},
+      h('div', {style:{fontSize:11,fontWeight:600,opacity:.7,letterSpacing:.5}}, 'Saldo Tersedia'),
+      h('div', {style:{fontSize:28,fontWeight:800,marginTop:5}}, 'Rp11.400')
+    ),
+    h('div', {style:{margin:'0 16px 12px'}},
+      h('div', {className:'card', style:{padding:15}},
+        h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:11,display:'flex',alignItems:'center',gap:7}},
+          ic('CreditCard', 16, {color:PURPLE}), ' Metode Penarikan'
+        ),
+        h('div', {style:{fontSize:12,color:'#555',lineHeight:2.1}},
+          h('strong', null, 'Metode:'), ' Wallet', h('br'),
+          h('strong', null, 'Provider:'), ' DANA', h('br'),
+          h('strong', null, 'No. Rekening:'), ' 088238502311', h('br'),
+          h('strong', null, 'Atas Nama:'), ' masmuhasyir@gmail.com'
+        ),
+        h('div', {style:{fontSize:11,color:'#aaa',marginTop:7}}, 'Ubah metode penarikan di halaman Profile.')
+      )
+    ),
+    h('div', {style:{margin:'0 16px 12px'}},
+      h('div', {className:'card', style:{padding:15}},
+        h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:4}},
+          'Jumlah Penarikan ', h('span', {style:{fontSize:11,color:'#aaa',fontWeight:400}}, 'Min. Rp30.000')
+        ),
+        h('div', {className:'input-wrap', style:{margin:'11px 0 9px'}},
+          h('input', {className:'input-field no-icon', placeholder:'Minimum Rp30.000', value:amount, onChange:e=>setAmount(e.target.value)})
+        ),
+        h('div', {className:'amount-pills'},
+          pills.map(p => h('button', {key:p, className:`amount-pill ${selected===p?'sel':''}`, onClick:()=>setSelected(p)}, p))
+        )
+      )
+    ),
+    h('div', {style:{padding:'0 16px 14px'}},
+      h('button', {className:'btn-primary', style:{opacity:.5}},
+        ic('ArrowDownLeft', 16), ' Tarik Saldo'
+      )
+    ),
+    h('div', {style:{margin:'0 16px 14px'}},
+      h('div', {className:'card', style:{padding:15}},
+        h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:14,display:'flex',alignItems:'center',gap:7}},
+          ic('History', 16, {color:PURPLE}), ' Riwayat Penarikan'
+        ),
+        h('div', {className:'riwayat-empty'}, 'Belum ada penarikan')
+      )
+    )
+  );
+}
+
+function ReferralsPage() {
+  const [activeTab, setActiveTab] = useState("pengguna");
+  const [copied, setCopied] = useState(false);
+  const refCode = "REF11408768";
+  const refUrl = `https://pinjemwa.com/register?ref=${refCode}`;
+  const handleCopy = () => { setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  return h('div', null,
+    h('div', {className:'page-header'},
+      h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+        h('div', {className:'page-header-icon'}, ic('Link2', 18)),
+        h('div', null,
+          h('div', {className:'page-header-title'}, 'Referrals'),
+          h('div', {className:'page-header-sub'}, 'Bagikan link dan dapatkan komisi')
+        )
+      )
+    ),
+    h('div', {className:'info-banner'},
+      h('span', {style:{color:PURPLE,flexShrink:0,marginTop:1}}, ic('Info', 15)),
+      h('div', {style:{fontSize:12,color:'#3333aa'}},
+        'Anda mendapatkan ', h('strong', null, 'Rp50'), ' untuk setiap pesan yang dikirim oleh user referral Anda.'
+      )
+    ),
+    h('div', {style:{background:WHITE,borderRadius:13,border:`1px solid ${BORDER}`,padding:15,margin:'0 16px 12px'}},
+      h('div', {style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:.5,textTransform:'uppercase',marginBottom:7,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        h('span', null, 'KODE REFERRAL'),
+        ic('Sparkles', 17, {color:PURPLE})
+      ),
+      h('div', {style:{fontSize:24,fontWeight:800,color:'#1a1a2e',fontFamily:"'DM Mono',monospace",marginBottom:11}}, refCode),
+      h('div', {style:{display:'flex',gap:7,marginBottom:11}},
+        h('button', {onClick:handleCopy, style:{flex:1,padding:'9px 12px',borderRadius:9,fontSize:12,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:5,cursor:'pointer',border:'none',background:PURPLE,color:'white'}},
+          ic('Copy', 14, {color:'white'}), copied?' Tersalin!':' Copy'
+        ),
+        h('button', {style:{flex:1,padding:'9px 12px',borderRadius:9,fontSize:12,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:5,cursor:'pointer',background:'white',color:'#555',border:`1.5px solid ${BORDER}`}},
+          ic('Share2', 14), ' Share'
+        )
+      ),
+      h('div', {style:{background:'#F8F8FC',borderRadius:9,padding:'9px 11px',display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        h('div', {style:{fontSize:11,color:'#777',fontFamily:"'DM Mono',monospace",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'85%'}}, refUrl),
+        h('button', {style:{background:'none',border:'none',cursor:'pointer',color:'#aaa',display:'flex',alignItems:'center'}}, ic('Copy', 15))
+      )
+    ),
+    h('div', {className:'ref-total-card'},
+      h('div', {style:{fontSize:10,color:'#aaa',fontWeight:700,letterSpacing:.5,textTransform:'uppercase'}}, 'TOTAL PENDAPATAN REFERRAL'),
+      h('div', {style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        h('div', {className:'ref-total-val'}, 'Rp0'),
+        h('button', {style:{background:'#F0F0FC',border:'none',borderRadius:9,width:34,height:34,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:PURPLE}},
+          ic('BarChart2', 16)
+        )
+      ),
+      h('div', {className:'ref-total-row'},
+        h('div', {style:{display:'flex',alignItems:'center',gap:8}},
+          ic('Users', 18, {color:PURPLE}),
+          h('div', null,
+            h('div', {style:{fontSize:11,color:'#aaa'}}, 'Total Referred'),
+            h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e'}}, '0')
+          )
+        ),
+        h('div', {style:{display:'flex',alignItems:'center',gap:8}},
+          ic('Banknote', 18, {color:PURPLE}),
+          h('div', null,
+            h('div', {style:{fontSize:11,color:'#aaa'}}, 'Pendapatan Hari Ini'),
+            h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e'}}, 'Rp0')
+          )
+        )
+      )
+    ),
+    h('div', {className:'filter-tabs'},
+      ['pengguna','riwayat'].map(t =>
+        h('button', {key:t, className:`filter-tab ${activeTab===t?'active':''}`, onClick:()=>setActiveTab(t)},
+          t.charAt(0).toUpperCase()+t.slice(1)
+        )
+      )
+    ),
+    h('div', {style:{margin:'0 16px 14px'}},
+      h('div', {className:'card', style:{padding:15}},
+        h('div', {style:{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:7}},
+          activeTab==='pengguna'?'Pengguna dari Referral':'Riwayat Komisi'
+        ),
+        h('div', {className:'empty-state'},
+          activeTab==='pengguna'?'Belum ada yang mendaftar dengan kode Anda.':'Belum ada riwayat komisi.'
+        )
+      )
+    )
+  );
+}
+
+function ProfilePage() {
+  const [method, setMethod] = useState("Wallet");
+  const [provider, setProvider] = useState("DANA");
+  const [chatId, setChatId] = useState("");
+  return h('div', null,
+    h('div', {className:'page-header'},
+      h('div', {style:{display:'flex',alignItems:'center',gap:11}},
+        h('div', {className:'page-header-icon'}, ic('Settings', 18)),
+        h('div', null,
+          h('div', {className:'page-header-title'}, 'Profil'),
+          h('div', {className:'page-header-sub'}, 'Kelola data rekening, password, dan notifikasi')
+        )
+      )
+    ),
+    h('div', {className:'profile-section'},
+      h('div', {className:'profile-section-title'},
+        ic('CreditCard', 16, {color:PURPLE}), ' Data Rekening',
+        h('span', {className:'profile-section-badge'}, 'Provider: DANA')
+      ),
+      h('div', {className:'profile-grid'},
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Nama Lengkap'),
+          h('input', {className:'input-field no-icon', value:'memekbasahid', readOnly:true, style:{background:'#F4F4F8',fontSize:12,padding:'9px 11px'}}),
+          h('div', {style:{fontSize:10,color:'#bbb',marginTop:3}}, 'Nama di akun (read-only)')
+        ),
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Email'),
+          h('input', {className:'input-field no-icon', value:'masmuhasyir@g...', readOnly:true, style:{background:'#F4F4F8',fontSize:12,padding:'9px 11px'}}),
+          h('div', {style:{fontSize:10,color:'#bbb',marginTop:3}}, 'Email akun (read-only)')
+        )
+      ),
+      h('div', {className:'profile-grid', style:{marginTop:11}},
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Method'),
+          h('select', {className:'select-field', value:method, onChange:e=>setMethod(e.target.value)},
+            h('option', null, 'Wallet'), h('option', null, 'Bank')
+          ),
+          h('div', {style:{fontSize:10,color:'#bbb',marginTop:3}}, 'Saat ini hanya mendukung Wallet')
+        ),
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Provider'),
+          h('select', {className:'select-field', value:provider, onChange:e=>setProvider(e.target.value)},
+            h('option', null, 'DANA'), h('option', null, 'OVO'), h('option', null, 'GoPay')
+          ),
+          h('div', {style:{fontSize:10,color:'#bbb',marginTop:3}}, 'Sumber dari tabel channel')
+        )
+      ),
+      h('div', {className:'profile-grid', style:{marginTop:11}},
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Nomor Rekening / Wallet'),
+          h('input', {className:'input-field no-icon', defaultValue:'088238502311', style:{fontSize:12,padding:'9px 11px'}})
+        ),
+        h('div', null,
+          h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, 'Nama Pemilik Rekening'),
+          h('input', {className:'input-field no-icon', defaultValue:'masmuhasyir@g...', style:{fontSize:12,padding:'9px 11px'}})
+        )
+      ),
+      h('button', {className:'btn-primary', style:{marginTop:14}},
+        ic('Save', 15), ' Simpan Perubahan'
+      )
+    ),
+    h('div', {className:'profile-section'},
+      h('div', {className:'profile-section-title'},
+        ic('KeyRound', 16, {color:PURPLE}), ' Ganti Password',
+        h('span', {className:'profile-section-badge'}, 'Min. 6 karakter')
+      ),
+      h('div', {className:'profile-grid', style:{gridTemplateColumns:'1fr 1fr 1fr',marginTop:13}},
+        ...['Password Saat Ini','Password Baru','Konfirmasi'].map((label,i)=>
+          h('div', {key:i},
+            h('div', {style:{fontSize:11,color:'#aaa',marginBottom:4}}, label),
+            h('input', {className:'input-field no-icon', type:'password', defaultValue:'••••••••', style:{fontSize:12,padding:'9px 11px'}})
+          )
+        )
+      ),
+      h('button', {className:'btn-primary', style:{marginTop:14,background:'#F59E0B'}},
+        ic('RefreshCw', 15), ' Ubah Password'
+      )
+    ),
+    h('div', {className:'profile-section'},
+      h('div', {className:'profile-section-title'},
+        ic('Bell', 16, {color:PURPLE}), ' Notifikasi',
+        h('span', {className:'profile-section-badge'}, 'Telegram')
+      ),
+      h('div', {style:{marginTop:13}},
+        h('div', {style:{fontSize:12,color:'#555',marginBottom:7}}, 'Telegram Chat Id'),
+        h('input', {className:'input-field no-icon', placeholder:'contoh: 123456789', value:chatId, onChange:e=>setChatId(e.target.value)}),
+        h('div', {style:{fontSize:11,color:PURPLE,marginTop:7,display:'flex',alignItems:'center',gap:5}},
+          ic('Info', 13), ' Pastikan chat id benar agar notifikasi masuk ke Telegram kamu.'
+        )
+      ),
+      h('button', {className:'btn-primary', style:{marginTop:14}},
+        ic('BellRing', 15), ' Update Notifikasi'
+      )
+    )
+  );
+}
+
+function App() {
+  const [screen, setScreen] = useState("login");
+  const [activePage, setActivePage] = useState("dashboard");
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrType, setQrType] = useState("qr");
+  const [showWalletMenu, setShowWalletMenu] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  if (screen === 'login') return h('div', null,
+    h('style', null, css),
+    h(LoginPage, {onLogin:()=>setScreen('app'), onRegister:()=>setScreen('register')})
+  );
+  if (screen === 'register') return h('div', null,
+    h('style', null, css),
+    h(RegisterPage, {onBack:()=>setScreen('login')})
+  );
+
+  const renderPage = () => {
+    if (activePage==='dashboard') return h(DashboardPage);
+    if (activePage==='devices') return h(DevicesPage, {onScanQR:()=>{setQrType('qr');setShowQRModal(true)}, onPairing:()=>{setQrType('pairing');setShowQRModal(true)}});
+    if (activePage==='withdraw') return h(WithdrawPage);
+    if (activePage==='referrals') return h(ReferralsPage);
+    if (activePage==='profile') return h(ProfilePage);
+  };
+
+  const navItems = [
+    {id:'dashboard', iconName:'LayoutDashboard', label:'Dashboard'},
+    {id:'devices', iconName:'Smartphone', label:'Devices'},
+    {id:'wallet-center', iconName:null, label:null},
+    {id:'referrals', iconName:'Users', label:'Referrals'},
+    {id:'profile', iconName:'UserCircle', label:'Profile'},
+  ];
+
+  return h('div', null,
+    h('style', null, css),
+    h('div', {className:'app'},
+      h('div', {className:'topbar'},
+        h('div', {style:{display:'flex',alignItems:'center',gap:9}},
+          h('div', {className:'topbar-icon'}, ic('Phone', 18)),
+          h('div', null,
+            h('span', {className:'topbar-title'}, 'PinjemWA'),
+            h('span', {className:'topbar-sub'}, 'Panel')
+          )
+        ),
+        h('button', {className:'logout-btn', onClick:()=>setScreen('login')},
+          ic('LogOut', 15), ' Logout'
+        )
+      ),
+      h('div', {className:'page', style:{flex:1,overflowY:'auto'}}, renderPage()),
+      h('div', {className:'bottom-nav'},
+        navItems.map(item => {
+          if (item.id==='wallet-center') {
+            return h('button', {key:'wallet', className:'nav-item', onClick:()=>setShowWalletMenu(!showWalletMenu)},
+              h('div', {className:'nav-wallet'}, ic('CreditCard', 22, {color:'white'})),
+              h('span', {style:{marginTop:5,color:PURPLE,fontWeight:700,fontSize:11}}, 'Wallets')
+            );
+          }
+          const isActive = activePage === item.id;
+          return h('button', {key:item.id, className:`nav-item ${isActive?'active':''}`, onClick:()=>setActivePage(item.id)},
+            ic(item.iconName, 22),
+            h('span', null, item.label)
+          );
+        })
+      ),
+      showWalletMenu && h(WalletPopup, {onClose:()=>setShowWalletMenu(false), onWithdraw:()=>setActivePage('withdraw')}),
+      showQRModal && h(QRModal, {type:qrType, onClose:()=>setShowQRModal(false)}),
+      toast && h('div', {className:'toast'}, toast)
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
