@@ -8,29 +8,86 @@
 <script>
 const { useState, useEffect, useRef, createElement: h } = React;
 
+const ICON_FALLBACKS = { SmartphoneNfc: 'Smartphone' };
+const DEFAULT_FALLBACK_ICON = 'Circle';
+const warnedMissingIcons = new Set();
+
+const warnMissingIcon = (name, fallbackName) => {
+  const key = `${name}|${fallbackName || 'none'}`;
+  if (warnedMissingIcons.has(key)) return;
+  warnedMissingIcons.add(key);
+  console.warn(`[lucide] Icon "${name}" tidak ditemukan.${fallbackName ? ` Menggunakan fallback "${fallbackName}".` : ''}`);
+};
+
+const resolveIconName = (name) => {
+  if (lucide[name]) return name;
+  const mappedName = ICON_FALLBACKS[name];
+  if (mappedName && lucide[mappedName]) {
+    warnMissingIcon(name, mappedName);
+    return mappedName;
+  }
+  if (lucide[DEFAULT_FALLBACK_ICON]) {
+    warnMissingIcon(name, DEFAULT_FALLBACK_ICON);
+    return DEFAULT_FALLBACK_ICON;
+  }
+  warnMissingIcon(name);
+  return null;
+};
+
+const renderIconChildren = (nodes, keyPrefix = 'icon') => {
+  if (!Array.isArray(nodes)) return [];
+  return nodes.flatMap((node, index) => {
+    if (node == null || node === false) return [];
+    if (typeof node === 'string' || typeof node === 'number') return [node];
+    if (!Array.isArray(node)) return [];
+    if (typeof node[0] !== 'string') return renderIconChildren(node, `${keyPrefix}-${index}`);
+    const [tagName, attrs = {}, ...children] = node;
+    return [
+      h(tagName, { key: `${keyPrefix}-${index}`, ...(attrs || {}) }, ...renderIconChildren(children, `${keyPrefix}-${index}`))
+    ];
+  });
+};
+
+const validateUsedLucideIcons = () => {
+  const source = document.currentScript?.textContent || '';
+  const usedIcons = new Set();
+  const patterns = [
+    /ic\(\s*['"`]([A-Za-z0-9]+)['"`]/g,
+    /iconName\s*:\s*['"`]([A-Za-z0-9]+)['"`]/g
+  ];
+  patterns.forEach((pattern) => {
+    for (const match of source.matchAll(pattern)) usedIcons.add(match[1]);
+  });
+  usedIcons.forEach((iconName) => resolveIconName(iconName));
+};
+
 const ic = (name, size = 16, extraStyle = {}) => {
-  const icon = lucide[name];
-  if (!icon) return null;
-  const [tag, attrs, ...children] = icon;
+  const resolvedName = resolveIconName(name);
+  if (!resolvedName) return null;
+  const icon = lucide[resolvedName];
+  if (!Array.isArray(icon)) return null;
+  const [, attrs = {}, ...children] = icon;
   const svgAttrs = {
-    ...attrs,
-    width: size,
-    height: size,
-    style: { display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...extraStyle },
-    stroke: 'currentColor',
     fill: 'none',
+    stroke: 'currentColor',
     strokeWidth: 1.75,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
-    ...attrs
+    ...attrs,
+    width: size,
+    height: size,
+    style: {
+      display: 'inline-block',
+      verticalAlign: 'middle',
+      flexShrink: 0,
+      ...(attrs.style || {}),
+      ...extraStyle
+    }
   };
-  const renderChildren = (kids) => kids.map((kid, i) => {
-    if (typeof kid === 'string') return kid;
-    const [t, a, ...c] = kid;
-    return h(t, { key: i, ...a }, ...renderChildren(c));
-  });
-  return h('svg', svgAttrs, ...renderChildren(children));
+  return h('svg', svgAttrs, ...renderIconChildren(children));
 };
+
+validateUsedLucideIcons();
 
 const PURPLE = "#5B5BD6";
 const PURPLE_LIGHT = "#EEEDFE";
